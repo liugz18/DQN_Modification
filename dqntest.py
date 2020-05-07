@@ -11,18 +11,19 @@ import pandas as pd
 import gym
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-
+import copy
 import time
 
 # Hyper Parameters
 BATCH_SIZE = 32
-LR = 0.0001  # learning rate
+LR = 0.000001  # learning rate
 EPSILON = 0.7  # greedy policy
 GAMMA = 0.9  # reward discount
 TARGET_REPLACE_ITER = 100  # target update frequency
 
 #  增大MEMORY_CAPACITY 可以减少突然很低分的出现
-MEMORY_CAPACITY = 5000
+MEMORY_CAPACITY = 1000
+Y_CAPACITY = 10
 env = gym.make('MountainCarContinuous-v0')
 env = env.unwrapped
 print(env.observation_space)
@@ -86,48 +87,35 @@ class Net(nn.Module):
         return actions_value
 
 
-'''添加dueling dqn'''
-class DuelingNet(nn.Module):
-    def __init__(self, ):
-        super(DuelingNet, self).__init__()
-        self.fc1 = nn.Linear(N_STATES, 45)
-        self.fc1.weight.data.normal_(0, 0.1)  # initialization
-        # self.fc2 = nn.Linear(10,80)
-        # self.fc2.weight.data.normal_(0, 0.1)  # initialization
-        self.out = nn.Linear(45, N_ACTIONS + 1)
-        self.out.weight.data.normal_(0, 0.1)  # initialization
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.relu(x)
-        # x = self.fc2(x)
-        # x = F.relu(x)
-        actions_value = self.out(x)
-        Vs = actions_value[:,0]
-
-
-        actions_advantage = actions_value[:,1:N_ACTIONS+1]
-        actions_advantage_average = torch.mean(actions_advantage,dim=1,keepdim=True)
-
-        actions_advantage -= actions_advantage_average
-
-        actions_advantage += Vs.view(-1,1)
-
-
-        return actions_advantage
-
 
 class DQN(object):
     def __init__(self):
 
-        #Dueling DQN
-        self.eval_net = Net()#DuelingNet()##
-        self.target_net = Net()##DuelingNet()
+        self.eval_net = Net()
+        self.target_net = Net()
         self.learn_step_counter = 0  # for target updating
         self.memory_counter = 0  # for storing memory
         self.memory = np.zeros((MEMORY_CAPACITY, N_STATES * 2 + 3))  # initailize memory
+        '''ADD  Y'''
+        initial_Y_Parameters = self.target_net.state_dict()
+        self.Y_counter = 0  # for storing DQNs
+        self.Ys = [initial_Y_Parameters]*Y_CAPACITY  # initailize DQN memory
         self.optimizer = torch.optim.Adam(self.eval_net.parameters(), lr=LR)
         self.loss_func = nn.MSELoss()
+
+    def Oracle(self, x):
+        QSAs = np.zeros((Y_CAPACITY, N_ACTIONS))
+        for i, model in enumerate(self.Ys):
+            temp_model = Net()
+            temp_model.load_state_dict(model)
+            QSAs[i] = temp_model.forward(x).detach().numpy()
+            #temp_model.__del__()
+        argmaxAction = np.ptp(QSAs,axis=0)
+        #print(QSAs)
+        #print(argmaxAction)
+        action = np.argmax(argmaxAction)
+        print(action)
+        return action
 
     def choose_action(self, x):
         x = Variable(torch.unsqueeze(torch.FloatTensor(x), 0))
@@ -136,7 +124,8 @@ class DQN(object):
             action = int(torch.max(actions_value, 1)[1].data.numpy())  # [0,0]
             # print(action)
         else:
-            action = int(np.random.randint(0, N_ACTIONS))
+            #action = int(np.random.randint(0, N_ACTIONS))
+            action = self.Oracle(x)
         return action
 
     def store_transition(self, s, a, r, done, s_):
@@ -149,8 +138,12 @@ class DQN(object):
     def learn(self):
         # target net update
         if self.learn_step_counter % TARGET_REPLACE_ITER == 0:
+
             self.target_net.load_state_dict(self.eval_net.state_dict())
 
+        '''ADD  Y'''
+        self.Ys[self.Y_counter % Y_CAPACITY] = copy.deepcopy(self.eval_net.state_dict())
+        self.Y_counter += 1
         sample_index = np.random.choice(MEMORY_CAPACITY, BATCH_SIZE)
         b_memory = self.memory[sample_index, :]
         b_s = Variable(torch.FloatTensor(b_memory[:, :N_STATES]))
@@ -166,24 +159,31 @@ class DQN(object):
         # print(b_s)
         q_eval = self.eval_net(b_s)  # .gather(1,b_a)
 
-        # print(q_eval)
+        #print(q_eval)
+        #print(b_a)
         q_eval = torch.gather(q_eval, 1, b_a)
 
-        '''DDQN'''
-        actions_value = self.eval_net(b_s_).detach()
-        action_ = actions_value.max(1)[1]
+        # '''DDQN'''
+        # actions_value = self.eval_net(b_s_).detach()
+        # action_ = actions_value.max(1)[1]
 
         q_next = self.target_net(b_s_).detach()
-        #q_target = GAMMA * q_next.max(1)[0]
+        q_target = GAMMA * q_next.max(1)[0].reshape((-1,1))
 
+        # print('q_eval',q_eval,q_eval.shape)
+        #
+        # print('q_target',q_target,q_target.shape)
+        # print('br',b_r,b_r.shape)
 
-        '''DDQN'''
-        q_target = GAMMA * q_next.gather(1, action_.view(-1, 1))
-
-
-
-        q_target = b_done * q_target.view(-1, 1)
-
+        #
+        # '''DDQN'''
+        # q_target = GAMMA * q_next.gather(1, action_.view(-1, 1))
+        #
+        #
+        #
+        # q_target = b_done * q_target.view(-1, 1)
+        #print(q_target)
+        #print(b_r)
         q_target += b_r
         #print(q_target)
         # print(b_done.detach().shape)
@@ -232,29 +232,20 @@ for i_episode in range(200):
         '''Modified Reward'''
         score += r
         #pos += 0.5
-        r = abs(velo)
-
-        if velo > 0:
-            r *= 2
-
-        #r += 2 * pos
-        if pos > 0.4:
-            r += 10 * pos
-
-
-        if done:
-            r+=3
-
-        # r += abs(10*pos) ** 3
+        # r = abs(velo)
         #
-        # if(pos>0):
-        #     r += 5 * int(pos/0.1)
-        # else:
-        #     r *= 0.1
+        # if velo > 0:
+        #     r *= 2
         #
-        # print(r)
+        # #r += 2 * pos
+        # if pos > 0.4:
+        #     r += 10 * pos
+        #
+        #
+        # if done:
+        #     r+=3
 
-        # print(s)
+
         dqn.store_transition(s, a, r, ~done, s_)
         # if dqn.memory_counter > MEMORY_CAPACITY:
         # dqn.learn()
