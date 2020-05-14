@@ -79,6 +79,14 @@ class DQN:
         action = np.argmax(argmaxAction)
         #print(action)
         return action
+    
+        #how to get a better Q?
+        #suppose the input model is model_input
+        #For a in Actions: 
+        #   model_actor[a] = model_input.copy()
+        #   model_actor[a].perform(gradident accent for 100 steps)
+        #best_a = argmax([model_actor[a].Qvalue_of(a) for a in Actions])
+        
 
     def act(self, state):
 
