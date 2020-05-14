@@ -29,9 +29,9 @@ class DQN:
         self.gamma = .95
         self.batch_size = 64
         self.epsilon_min = .01
-        self.epsilon_decay = .995
+        self.epsilon_decay = .986
         self.learning_rate = 0.001
-        self.target_replace_iter = 100
+        self.target_replace_iter = 50
         self.target_iter = 0
         self.memory = deque(maxlen=10000)
         self.model = self.build_model()
@@ -42,6 +42,8 @@ class DQN:
         '''Y'''
         self.Y_iter = 0
         self.Y_capacity = 4
+        self.Y_replacy_iter = 10
+
 
         for i in range(self.Y_capacity):
             self.target_model.save(str(i) + '.h5')
@@ -111,16 +113,37 @@ class DQN:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+
+
+        # self.target_iter += 1
+        # if self.target_iter % self.target_replace_iter == 0:
+        #     self.model.save("my_h5_model.h5")
+        #     #reconstructed_model = keras.models.load_model("my_h5_model.h5")
+        #     self.target_model.save(str(self.Y_iter) + '.h5')
+        #     self.target_model.load_weights("my_h5_model.h5")
+        #     self.target_iter = 0
+        #     self.Y_iter += 1
+        #     if self.Y_iter % self.Y_capacity == 0:
+        #         self.Y_iter = 0
+
         self.target_iter += 1
         if self.target_iter % self.target_replace_iter == 0:
             self.model.save("my_h5_model.h5")
-            #reconstructed_model = keras.models.load_model("my_h5_model.h5")
-            self.target_model.save(str(self.Y_iter) + '.h5')
+            # reconstructed_model = keras.models.load_model("my_h5_model.h5")
             self.target_model.load_weights("my_h5_model.h5")
             self.target_iter = 0
+
+
+
+
+
+        if self.target_iter % self.Y_replacy_iter==0:
+            self.model.save(str(self.Y_iter) + '.h5')
             self.Y_iter += 1
             if self.Y_iter % self.Y_capacity == 0:
                 self.Y_iter = 0
+
+
 
 
 def train_dqn(episode):
@@ -129,7 +152,8 @@ def train_dqn(episode):
     agent = DQN(env.action_space.n, env.observation_space.shape[0])
     for e in range(episode):
         state = env.reset()
-        state = np.reshape(state, (1, state.shape[0]))
+        state_shape = state.shape[0]
+        state = np.reshape(state, (1, state_shape))
         score = 0
         max_steps = 1000
         for i in range(max_steps):
@@ -138,7 +162,7 @@ def train_dqn(episode):
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             score += reward
-            next_state = np.reshape(next_state, (1, 2))
+            next_state = np.reshape(next_state, (1, state_shape))
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             agent.replay()
@@ -165,11 +189,11 @@ def train_dqn(episode):
 
 if __name__ == '__main__':
 
-    ep = 1000
+    ep = 400
 
-
-    loss = train_dqn(ep)
-    np.save('Oracle5.npy', loss)
-    plt.plot([i + 1 for i in range(0, ep, 2)], loss[::2])
-    plt.show()
+    for i in range(3):
+        loss = train_dqn(ep)
+        np.save('second_oracle' + str(i+2)+'.npy', loss)
+        plt.plot([i + 1 for i in range(0, ep, 2)], loss[::2])
+        plt.show()
 
