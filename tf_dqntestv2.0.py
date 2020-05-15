@@ -2,6 +2,7 @@
 import gym
 import random
 import tensorflow as tf
+
 from tensorflow.keras import optimizers#layers,Sequential,
 
 from keras import layers, Sequential, Model
@@ -25,7 +26,7 @@ class DQN:
 
         self.action_space = action_space
         self.state_space = state_space
-        self.epsilon = 1
+        self.epsilon = 0.8
         self.gamma = .95
         self.batch_size = 64
         self.epsilon_min = .01
@@ -59,7 +60,7 @@ class DQN:
 
         inputs = layers.Input(shape=(self.state_space,))
         x = Dense(24, activation='relu')(inputs)
-        x = Dense(24, activation='relu')(x)
+        #x = Dense(24, activation='relu')(x)
 
         outputs = [ Dense(1,activation='linear')(x) for i in range(self.action_space)]
 
@@ -79,7 +80,18 @@ class DQN:
         self.memory.append((state, action, reward, next_state, done))
 
     def Oracle_Loss(self, Qsa1, Qsa2):
-        return -(Qsa1 - Qsa2)**2
+       # loss = -(Qsa1 - Qsa2)**2
+
+        # Qsa1zero = 0
+        # Qsa2zero = 0
+        #
+        # session = tf.Session()
+        #
+        # Qsa1zero =  session.run(Qsa1)
+        # Qsa2zero =  session.run(Qsa2)
+        # if Qsa1zero != Qsa2zero:
+        #     return loss
+        return -(Qsa1 - Qsa2 -10)**2
 
 
     def Oracle(self, x):
@@ -106,14 +118,14 @@ class DQN:
             uncertainties.append((model_temp.predict(x)[a] - self.model.predict(x)[a])**2)
 
         action = np.argmax(np.array(uncertainties))
-        print(action)
+        print('Oracle Output action: ',action)
         return action
 
     def act(self, state):
 
         if np.random.rand() <= self.epsilon:
-            #return self.Oracle(state)
-            return random.randrange(self.action_space)
+            return self.Oracle(state)
+            #return random.randrange(self.action_space)
         act_values = self.model.predict(state)
         #print(act_values)
         return np.argmax(act_values)
@@ -195,7 +207,7 @@ def train_dqn(episode):
         max_steps = 1000
         for i in range(max_steps):
             # if e >= int(0.95*episode):
-            #     env.render()
+            env.render()
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             score += reward
@@ -230,7 +242,7 @@ if __name__ == '__main__':
 
     for i in range(3):
         loss = train_dqn(ep)
-        np.save('second_oraclee' + str(i+2)+'.npy', loss)
+        np.save('second_oraclee' + str(i+1)+'.npy', loss)
         plt.plot([i + 1 for i in range(0, ep, 2)], loss[::2])
         plt.show()
 
