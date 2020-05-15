@@ -121,7 +121,11 @@ class DQN:
         print('Oracle Output action: ',action)
         return action
 
-    def act(self, state):
+    def act(self, state, mode = 'train'):
+        if mode == 'test':
+          act_values = self.model.predict(state)
+          #print(act_values)
+          return np.argmax(act_values)
 
         if np.random.rand() <= self.epsilon:
             return self.Oracle(state)
@@ -192,7 +196,30 @@ class DQN:
         #     if self.Y_iter % self.Y_capacity == 0:
         #         self.Y_iter = 0
 
-
+def test_dqn(agent):
+  loss = []
+    
+  for e in range(50):
+      state = env.reset()
+      state_shape = state.shape[0]
+      state = np.reshape(state, (1, state_shape))
+      score = 0
+      max_steps = 1000
+      for i in range(max_steps):
+            # if e >= int(0.95*episode):
+            #env.render()
+        action = agent.act(state, mode = 'test')
+        next_state, reward, done, _ = env.step(action)
+        score += reward
+        next_state = np.reshape(next_state, (1, state_shape))
+            #agent.remember(state, action, reward, next_state, done)
+        state = next_state
+            #agent.replay()
+        if done:
+            #print("episode: {}/{}, score: {}".format(e, episode, score))
+            break
+      loss.append(score)
+  return loss
 
 
 def train_dqn(episode):
@@ -207,7 +234,7 @@ def train_dqn(episode):
         max_steps = 1000
         for i in range(max_steps):
             # if e >= int(0.95*episode):
-            env.render()
+            #env.render()
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             score += reward
@@ -218,7 +245,11 @@ def train_dqn(episode):
             if done:
                 print("episode: {}/{}, score: {}".format(e, episode, score))
                 break
+        
         loss.append(score)
+        if episode%50 == 0:
+          test_loss = test_dqn(agent)
+          print('test loss on episode ',episode, ' :',test_loss)
     return loss
 
 #
