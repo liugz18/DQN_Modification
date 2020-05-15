@@ -80,18 +80,8 @@ class DQN:
         self.memory.append((state, action, reward, next_state, done))
 
     def Oracle_Loss(self, Qsa1, Qsa2):
-       # loss = -(Qsa1 - Qsa2)**2
-
-        # Qsa1zero = 0
-        # Qsa2zero = 0
-        #
-        # session = tf.Session()
-        #
-        # Qsa1zero =  session.run(Qsa1)
-        # Qsa2zero =  session.run(Qsa2)
-        # if Qsa1zero != Qsa2zero:
-        #     return loss
-        return -(Qsa1 - Qsa2 -10)**2
+      
+        return -(Qsa1 - Qsa2 - 0.1)**2
 
 
     def Oracle(self, x):
@@ -129,7 +119,9 @@ class DQN:
 
         if np.random.rand() <= self.epsilon:
             return self.Oracle(state)
-            #return random.randrange(self.action_space)
+            #action = random.randrange(self.action_space)
+            #print('Random chooose action: ',action)
+            return action
         act_values = self.model.predict(state)
         #print(act_values)
         return np.argmax(act_values)
@@ -247,7 +239,7 @@ def train_dqn(episode):
                 break
         
         loss.append(score)
-        if episode%50 == 0:
+        if e%50 == 0:
           test_loss = test_dqn(agent)
           print('test loss on episode ',episode, ' :',test_loss)
     return loss
